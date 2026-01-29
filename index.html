@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DOOM: Windows Media Controls Edition</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <meta property="og:title" content="DOOM: Windows Media Controls Edition">
+    <meta property="og:description" content="RIP AND TEAR in your Windows Media Controls overlay!">
+    <meta property="og:image" content="https://thegoodjakeward.github.io/doom_windows_media_controls_edition/social.png">
+    <meta property="og:url" content="https://thegoodjakeward.github.io/doom_windows_media_controls_edition/">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="https://thegoodjakeward.github.io/doom_windows_media_controls_edition/">
+    <meta name="twitter:title" content="DOOM: Windows Media Controls Edition">
+    <meta name="twitter:description" content="RIP AND TEAR in your Windows Media Controls overlay!">
+    <meta name="twitter:image" content="https://thegoodjakeward.github.io/doom_windows_media_controls_edition/social.png">
+    
+    <style>
+        body { 
+            background: #000; 
+            color: #f00; 
+            font-family: 'Courier New', monospace; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        
+        h1 {
+            margin: 0 0 20px 0;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #f00;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.8), 0 0 40px rgba(255, 0, 0, 0.5);
+            font-size: 2.5em;
+        }
+
+        .panel {
+            background: #1a0000;
+            padding: 2rem;
+            border-radius: 8px;
+            border: 2px solid #f00;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+            width: 400px;
+        }
+
+        button { 
+            padding: 15px 30px; 
+            font-size: 20px; 
+            cursor: pointer; 
+            background: #f00; 
+            color: #000;
+            border: none; 
+            font-weight: bold; 
+            border-radius: 4px; 
+            margin-bottom: 20px;
+            width: 100%;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        button:hover { background: #ff3333; }
+        button:disabled { background: #440000; color: #880000; cursor: not-allowed; }
+
+        .settings-group {
+            margin: 15px 0;
+            text-align: left;
+        }
+
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold;
+            color: #ff6666;
+        }
+        
+        select {
+            width: 100%;
+            padding: 8px;
+            background: #330000;
+            color: #fff;
+            border: 1px solid #f00;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .instructions { 
+            font-size: 0.9em; 
+            color: #ff6666; 
+            margin-top: 20px; 
+            line-height: 1.8;
+            text-align: left;
+        }
+        
+        .instructions p {
+            margin: 8px 0;
+        }
+        
+        .instructions b {
+            color: #f00;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>💀 DOOM 💀<br/>MEDIA CONTROLS</h1>
+
+    <div class="panel">
+        <button id="startBtn">🔥 INITIALIZE HELL LINK 🔥</button>
+        
+        <div class="settings-group">
+            <label for="difficulty">Difficulty Level:</label>
+            <select id="difficulty">
+                <option value="easy">I'm Too Young To Die (Easy)</option>
+                <option value="normal" selected>Hurt Me Plenty (Normal)</option>
+                <option value="hard">Ultra-Violence (Hard)</option>
+            </select>
+        </div>
+
+        <div class="instructions">
+            <p><b>CONTROLS:</b></p>
+            <p>1. Click Initialize above</p>
+            <p>2. Press <b>Win + A</b> to open Media Controls</p>
+            <p>3. <b>Prev (◀)</b> = Turn LEFT</p>
+            <p>4. <b>Next (▶)</b> = Turn RIGHT</p>
+            <p>5. <b>Play</b> = Move FORWARD</p>
+            <p>6. <b>Pause</b> = SHOOT</p>
+            <p></p>
+            <p><b>OBJECTIVE: RIP AND TEAR DEMONS!</b></p>
+        </div>
+    </div>
+
+    <audio id="bgMusic" loop src="music.mp3"></audio>
+
+    <script>
+        // --- CANVAS SETUP ---
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        
+        const startBtn = document.getElementById('startBtn');
+        const music = document.getElementById('bgMusic');
+        const difficultySelect = document.getElementById('difficulty');
+
+        // --- GAME STATE ---
+        let gameState = 'MENU';
+        let score = 0;
+        let health = 100;
+        let ammo = 50;
+        
+        // Player position and rotation
+        let playerX = 8;
+        let playerY = 8;
+        let playerAngle = 0;
+        
+        // Enemies
+        let enemies = [];
+        let maxEnemies = 5;
+        let enemySpawnRate = 3000;
+        
+        // Shooting
+        let shootCooldown = 0;
+        let muzzleFlash = 0;
+        
+        // MediaSession throttling
+        let lastArtworkUpdate = 0;
+        const ARTWORK_UPDATE_INTERVAL = 200;
+        
+        // Map (16x16 grid, 1=wall, 0=empty)
+        const mapSize = 16;
+        let worldMap = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1],
+            [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+            [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,1,1,1,0,0,0,0,1,1,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        // --- DIFFICULTY SETTINGS ---
+       function setDifficulty() {
+    const level = difficultySelect.value;
+    if (level === 'easy') {
+        maxEnemies = 4;  // Statt 2
+        enemySpawnRate = 5000;
+    } else if (level === 'normal') {
+        maxEnemies = 6;  // Statt 3
+        enemySpawnRate = 3000;
+    } else if (level === 'hard') {
+        maxEnemies = 10;  // Statt 5
+        enemySpawnRate = 2000;
+    }
+}
+
+       // --- ENEMY CLASS ---
+class Enemy {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.health = 100;
+        this.alive = true;
+        this.moveTimer = 0;
+        this.attackTimer = 0;
+        this.attackCooldown = 3000;
+    }
+    
+    update(deltaTime) {
+        if (!this.alive) return;
+        
+        // Chase player
+        const dx = playerX - this.x;
+        const dy = playerY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Move towards player
+        if (dist > 1) {
+            const moveSpeed = 0.02;
+            const newX = this.x + (dx / dist) * moveSpeed;
+            const newY = this.y + (dy / dist) * moveSpeed;
+            
+            if (worldMap[Math.floor(newY)][Math.floor(newX)] === 0) {
+                this.x = newX;
+                this.y = newY;
+            }
+        }
+        
+        // Attack player if close
+        this.attackTimer += deltaTime;
+        if (dist < 2 && this.attackTimer > this.attackCooldown) {
+            this.attackTimer = 0;
+            health -= 10;
+            updateOverlay();
+        }
+    }
+    
+    hit(damage) {
+        this.health -= damage;
+        if (this.health <= 0) {
+            this.alive = false;
+            score += 10;
+            ammo += 2;
+            return true;
+        }
+        return false;
+    }
+}
+
+        // --- SPAWN ENEMY ---
+        function spawnEnemy() {
+            if (enemies.filter(e => e.alive).length >= maxEnemies) return;
+            
+            let attempts = 0;
+            while (attempts < 50) {
+                const x = Math.random() * (mapSize - 2) + 1;
+                const y = Math.random() * (mapSize - 2) + 1;
+                
+                const dist = Math.sqrt((x - playerX) ** 2 + (y - playerY) ** 2);
+                
+                if (worldMap[Math.floor(y)][Math.floor(x)] === 0 && dist > 5) {
+                    enemies.push(new Enemy(x, y));
+                    return;
+                }
+                attempts++;
+            }
+        }
+
+        // --- RESET GAME ---
+        function resetGame() {
+            setDifficulty();
+            playerX = 8;
+            playerY = 8;
+            playerAngle = 0;
+            health = 100;
+            ammo = 50;
+            score = 0;
+            enemies = [];
+            shootCooldown = 0;
+            muzzleFlash = 0;
+            
+            // Spawn initial enemies
+            for (let i = 0; i < 4; i++) {  // Statt 2
+    spawnEnemy();
+}
+            
+            gameState = 'PLAYING';
+            updateOverlay();
+        }
+
+        // --- INPUT HANDLING ---
+        function handleInput(type) {
+            if (gameState === 'MENU') {
+                resetGame();
+                return;
+            }
+            
+            if (gameState === 'GAMEOVER') {
+                resetGame();
+                return;
+            }
+            
+            if (gameState === 'PLAYING') {
+                if (type === 'left') {
+                    playerAngle -= 0.3;
+                }
+                if (type === 'right') {
+                    playerAngle += 0.3;
+                }
+                if (type === 'forward') {
+                    const newX = playerX + Math.cos(playerAngle) * 0.3;
+                    const newY = playerY + Math.sin(playerAngle) * 0.3;
+                    
+                    if (worldMap[Math.floor(newY)][Math.floor(newX)] === 0) {
+                        playerX = newX;
+                        playerY = newY;
+                    }
+                }
+                if (type === 'shoot') {
+                    shoot();
+                }
+            }
+        }
+
+        // --- SHOOTING ---
+        function shoot() {
+            if (shootCooldown > 0 || ammo <= 0) return;
+            
+            ammo--;
+         shootCooldown = 400;  // Schneller! (war 500)
+          muzzleFlash = 150;
+            
+            // Raycast to find enemy in crosshair
+            const rayAngle = playerAngle;
+            const rayDirX = Math.cos(rayAngle);
+            const rayDirY = Math.sin(rayAngle);
+            
+            let closestEnemy = null;
+            let closestDist = Infinity;
+            
+            for (let enemy of enemies) {
+                if (!enemy.alive) continue;
+                
+                const dx = enemy.x - playerX;
+                const dy = enemy.y - playerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check if enemy is in front of player
+                const dotProduct = dx * rayDirX + dy * rayDirY;
+                if (dotProduct > 0) {
+                    // Calculate angle to enemy
+                    const angleToEnemy = Math.atan2(dy, dx);
+                    let angleDiff = angleToEnemy - rayAngle;
+                    
+                    // Normalize angle
+                    while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                    while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                    
+                    // Hit if within small angle (crosshair)
+                    if (Math.abs(angleDiff) < 0.2 && dist < closestDist) {
+                        closestEnemy = enemy;
+                        closestDist = dist;
+                    }
+                }
+            }
+            
+            if (closestEnemy) {
+                closestEnemy.hit(75);
+                updateOverlay();
+            }
+        }
+
+        // --- UPDATE LOOP ---
+        let lastUpdateTime = Date.now();
+        let enemySpawnTimer = 0;
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+            
+            const now = Date.now();
+            const deltaTime = now - lastUpdateTime;
+            lastUpdateTime = now;
+            
+            // Update cooldowns
+            if (shootCooldown > 0) shootCooldown -= deltaTime;
+            if (muzzleFlash > 0) muzzleFlash -= deltaTime;
+            
+            // Update enemies
+            for (let enemy of enemies) {
+                enemy.update(deltaTime);
+            }
+            
+            // Spawn new enemies
+            enemySpawnTimer += deltaTime;
+            if (enemySpawnTimer > enemySpawnRate) {
+                enemySpawnTimer = 0;
+                spawnEnemy();
+            }
+            
+            // Remove dead enemies (keep them for a bit for visual feedback)
+            enemies = enemies.filter(e => e.alive);
+            
+            // Check game over
+            if (health <= 0) {
+                gameState = 'GAMEOVER';
+                if (score > highScore) highScore = score;
+                updateOverlay();
+            }
+        }
+
+       // --- RAYCASTING RENDER --- (KOMPLETT ERSETZEN)
+function render() {
+    const screenWidth = canvas.width;
+    const screenHeight = canvas.height;
+    
+    // Clear screen
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, screenWidth, screenHeight);
+    
+    if (gameState === 'MENU') {
+        ctx.fillStyle = '#300';
+        ctx.fillRect(10, 10, screenWidth - 20, screenHeight - 20);
+        
+        ctx.fillStyle = '#f00';
+        ctx.font = 'bold 28px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText("DOOM", canvas.width / 2, 80);
+        
+        ctx.font = 'bold 20px Courier New';
+        ctx.fillText("PRESS", canvas.width / 2, 140);
+        ctx.fillText("PREV/NEXT", canvas.width / 2, 170);
+        ctx.fillText("TO START", canvas.width / 2, 200);
+        return;
+    }
+    
+    if (gameState === 'GAMEOVER') {
+    ctx.fillStyle = '#300';
+    ctx.fillRect(10, 10, screenWidth - 20, screenHeight - 20);
+    
+    ctx.fillStyle = '#f00';
+    ctx.font = 'bold 32px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText("YOU DIED", canvas.width / 2, 100);
+    
+    ctx.font = 'bold 18px Courier New';
+    ctx.fillText(`KILLS: ${Math.floor(score/10)}`, canvas.width / 2, 150);
+    
+    ctx.font = '14px Courier New';
+    ctx.fillStyle = '#f66';
+    ctx.fillText("PRESS ANY KEY", canvas.width / 2, 220);
+    return;
+}
+    
+    // Draw ceiling (dark red/brown)
+    const gradient1 = ctx.createLinearGradient(0, 0, 0, screenHeight / 2);
+    gradient1.addColorStop(0, '#200');
+    gradient1.addColorStop(1, '#400');
+    ctx.fillStyle = gradient1;
+    ctx.fillRect(0, 0, screenWidth, screenHeight / 2);
+    
+    // Draw floor (darker with gradient)
+    const gradient2 = ctx.createLinearGradient(0, screenHeight / 2, 0, screenHeight);
+    gradient2.addColorStop(0, '#333');
+    gradient2.addColorStop(1, '#111');
+    ctx.fillStyle = gradient2;
+    ctx.fillRect(0, screenHeight / 2, screenWidth, screenHeight / 2);
+    
+    // Raycasting
+    const numRays = 80; // Mehr Rays = besser Qualität
+    const fov = Math.PI / 3;
+    
+    const wallData = []; // Store wall data for z-ordering
+    
+    for (let i = 0; i < numRays; i++) {
+        const rayAngle = playerAngle - fov / 2 + (i / numRays) * fov;
+        const rayDirX = Math.cos(rayAngle);
+        const rayDirY = Math.sin(rayAngle);
+        
+        // Cast ray for walls
+        let hit = false;
+        let distance = 0;
+        let wallX = playerX;
+        let wallY = playerY;
+        let hitSide = 0; // 0 = horizontal, 1 = vertical
+        
+        while (!hit && distance < 20) {
+            const stepSize = 0.05;
+            const oldX = wallX;
+            const oldY = wallY;
+            
+            wallX += rayDirX * stepSize;
+            wallY += rayDirY * stepSize;
+            distance += stepSize;
+            
+            const mapX = Math.floor(wallX);
+            const mapY = Math.floor(wallY);
+            
+            if (mapX < 0 || mapX >= mapSize || mapY < 0 || mapY >= mapSize || worldMap[mapY][mapX] === 1) {
+                hit = true;
+                // Determine which side was hit
+                if (Math.floor(oldX) !== mapX) hitSide = 1;
+                else hitSide = 0;
+            }
+        }
+        
+        wallData.push({ i, distance, hitSide });
+    }
+    
+    // Draw walls
+    for (let data of wallData) {
+        const { i, distance, hitSide } = data;
+        
+        // Calculate wall height
+        const correctedDist = distance * Math.cos((playerAngle - fov / 2 + (i / numRays) * fov) - playerAngle);
+        const wallHeight = (screenHeight / correctedDist) * 0.8;
+        
+        // Calculate brightness based on distance
+        const baseBrightness = Math.max(0, 255 - distance * 15);
+        
+        // Different shading for different wall sides
+        let r, g, b;
+        if (hitSide === 0) {
+            // Horizontal walls - brighter red
+            r = baseBrightness * 0.8;
+            g = baseBrightness * 0.2;
+            b = baseBrightness * 0.2;
+        } else {
+            // Vertical walls - darker red
+            r = baseBrightness * 0.6;
+            g = baseBrightness * 0.15;
+            b = baseBrightness * 0.15;
+        }
+        
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        
+        const sliceWidth = screenWidth / numRays;
+        const wallTop = screenHeight / 2 - wallHeight / 2;
+        const wallBottom = screenHeight / 2 + wallHeight / 2;
+        
+        ctx.fillRect(
+            i * sliceWidth,
+            wallTop,
+            sliceWidth + 1,
+            wallHeight
+        );
+        
+        // Add some texture lines
+        if (Math.floor(distance * 10) % 3 === 0) {
+            ctx.fillStyle = `rgba(0, 0, 0, 0.3)`;
+            ctx.fillRect(i * sliceWidth, wallTop, sliceWidth + 1, wallHeight);
+        }
+    }
+    
+    // Draw enemies with better visibility
+    const enemySprites = [];
+    
+    for (let enemy of enemies) {
+        if (!enemy.alive) continue;
+        
+        const dx = enemy.x - playerX;
+        const dy = enemy.y - playerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist > 12) continue;
+        
+        const angleToEnemy = Math.atan2(dy, dx);
+        let angleDiff = angleToEnemy - playerAngle;
+        
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        
+        if (Math.abs(angleDiff) < fov / 2 + 0.5) {
+            enemySprites.push({ enemy, dist, angleDiff });
+        }
+    }
+    
+    // Sort enemies by distance (far to near)
+    enemySprites.sort((a, b) => b.dist - a.dist);
+    
+    // Draw enemies
+    for (let sprite of enemySprites) {
+        const { enemy, dist, angleDiff } = sprite;
+        
+        const screenX = (angleDiff / fov + 0.5) * screenWidth;
+        const size = (screenHeight / dist) * 0.6;
+        
+        // Draw enemy body (bigger and brighter)
+        const brightness = Math.max(50, 255 - dist * 15);
+        
+        // Shadow/outline
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(
+            screenX - size / 2 + 2,
+            screenHeight / 2 - size / 2 + 2,
+            size,
+            size
+        );
+        
+        // Main body
+        ctx.fillStyle = `rgb(${brightness}, ${brightness * 0.1}, 0)`;
+        ctx.fillRect(
+            screenX - size / 2,
+            screenHeight / 2 - size / 2,
+            size,
+            size
+        );
+        
+        // Border
+        ctx.strokeStyle = `rgb(${brightness * 1.2}, 0, 0)`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+            screenX - size / 2,
+            screenHeight / 2 - size / 2,
+            size,
+            size
+        );
+        
+        // Eyes (bigger and more visible)
+        ctx.fillStyle = '#ff0';
+        const eyeSize = size * 0.2;
+        const eyeY = screenHeight / 2 - size * 0.2;
+        
+        // Left eye
+        ctx.fillRect(screenX - size * 0.25, eyeY, eyeSize, eyeSize);
+        // Right eye
+        ctx.fillRect(screenX + size * 0.25 - eyeSize, eyeY, eyeSize, eyeSize);
+        
+        // Pupils
+        ctx.fillStyle = '#000';
+        const pupilSize = eyeSize * 0.4;
+        ctx.fillRect(screenX - size * 0.25 + eyeSize/3, eyeY + eyeSize/3, pupilSize, pupilSize);
+        ctx.fillRect(screenX + size * 0.25 - eyeSize + eyeSize/3, eyeY + eyeSize/3, pupilSize, pupilSize);
+        
+        // Health bar above enemy
+        if (enemy.health < 100) {
+            const barWidth = size * 0.8;
+            const barHeight = 4;
+            const barX = screenX - barWidth / 2;
+            const barY = screenHeight / 2 - size / 2 - 10;
+            
+            // Background
+            ctx.fillStyle = '#300';
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+            
+            // Health
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(barX, barY, barWidth * (enemy.health / 100), barHeight);
+        }
+    }
+    
+    // Weapon/Gun sprite at bottom
+    const gunWidth = 80;
+    const gunHeight = 60;
+    const gunX = screenWidth / 2 - gunWidth / 2;
+    const gunY = screenHeight - gunHeight - 5;
+    
+    // Gun shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(gunX + 3, gunY + 3, gunWidth, gunHeight);
+    
+    // Gun body
+    ctx.fillStyle = '#444';
+    ctx.fillRect(gunX, gunY, gunWidth, gunHeight);
+    
+    // Gun barrel
+    ctx.fillStyle = '#222';
+    ctx.fillRect(gunX + gunWidth / 2 - 8, gunY, 16, gunHeight / 2);
+    
+    // Gun handle
+    ctx.fillStyle = '#555';
+    ctx.fillRect(gunX + gunWidth / 2 - 12, gunY + gunHeight / 2, 24, gunHeight / 2);
+    
+    // Muzzle flash
+    if (muzzleFlash > 0) {
+        const flashAlpha = muzzleFlash / 150;
+        
+        // Yellow flash
+        ctx.fillStyle = `rgba(255, 255, 0, ${flashAlpha})`;
+        ctx.fillRect(gunX + gunWidth / 2 - 20, gunY - 20, 40, 30);
+        
+        // Orange glow
+        ctx.fillStyle = `rgba(255, 150, 0, ${flashAlpha * 0.5})`;
+        ctx.fillRect(gunX + gunWidth / 2 - 30, gunY - 30, 60, 50);
+        
+        // Screen flash
+        ctx.fillStyle = `rgba(255, 255, 200, ${flashAlpha * 0.2})`;
+        ctx.fillRect(0, 0, screenWidth, screenHeight);
+    }
+    
+    // Crosshair (bigger and more visible)
+    ctx.strokeStyle = '#0f0';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(screenWidth / 2 - 15, screenHeight / 2);
+    ctx.lineTo(screenWidth / 2 + 15, screenHeight / 2);
+    ctx.moveTo(screenWidth / 2, screenHeight / 2 - 15);
+    ctx.lineTo(screenWidth / 2, screenHeight / 2 + 15);
+    ctx.stroke();
+    
+    // Crosshair dot
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(screenWidth / 2 - 2, screenHeight / 2 - 2, 4, 4);
+    
+    // HUD Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, 120, 65);
+    
+    // HUD Text
+    ctx.fillStyle = '#f00';
+    ctx.font = 'bold 16px Courier New';
+    ctx.textAlign = 'left';
+    ctx.fillText(`HP: ${Math.max(0, health)}`, 8, 18);
+    
+    ctx.fillStyle = '#ff0';
+    ctx.fillText(`AMMO: ${ammo}`, 8, 36);
+    
+    ctx.fillStyle = '#0f0';
+    ctx.fillText(`KILLS: ${Math.floor(score/10)}`, 8, 54);
+    
+    // Low health warning
+    if (health < 30) {
+        const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+        ctx.fillStyle = `rgba(255, 0, 0, ${pulse * 0.3})`;
+        ctx.fillRect(0, 0, screenWidth, screenHeight);
+        
+        ctx.fillStyle = `rgba(255, 0, 0, ${pulse})`;
+        ctx.font = 'bold 20px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText("LOW HEALTH!", screenWidth / 2, 30);
+    }
+    
+    // Low ammo warning
+    if (ammo < 5 && ammo > 0) {
+        ctx.fillStyle = '#ff0';
+        ctx.font = 'bold 14px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText("LOW AMMO!", screenWidth / 2, screenHeight - 10);
+    }
+    
+    if (ammo === 0) {
+        const pulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
+        ctx.fillStyle = `rgba(255, 255, 0, ${pulse})`;
+        ctx.font = 'bold 16px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText("OUT OF AMMO!", screenWidth / 2, screenHeight - 10);
+    }
+}
+
+
+// --- UPDATE OVERLAY ---
+function updateOverlay() {
+    if (!('mediaSession' in navigator)) return;
+
+    const now = Date.now();
+    
+    const gunStatus = shootCooldown > 0 ? "RELOAD" : (ammo > 0 ? "READY" : "EMPTY");
+    
+    let titleText = `KILLS: ${Math.floor(score/10)} | HP: ${health}`;
+    let artistText = `AMMO: ${ammo} | GUN: ${gunStatus}`;
+
+    if (gameState === 'MENU') {
+        titleText = "DOOM: Media Controls Edition";
+        artistText = "Press Prev/Next to START...";
+    } else if (gameState === 'GAMEOVER') {
+        titleText = "YOU DIED";
+        artistText = `Total Kills: ${Math.floor(score/10)}`;
+    }
+
+    if (now - lastArtworkUpdate > ARTWORK_UPDATE_INTERVAL) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: titleText,
+            artist: artistText,
+            artwork: [{ 
+                src: canvas.toDataURL('image/png'), 
+                sizes: '256x256', 
+                type: 'image/png' 
+            }]
+        });
+        lastArtworkUpdate = now;
+    } else {
+        const currentArtwork = navigator.mediaSession.metadata?.artwork || [];
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: titleText,
+            artist: artistText,
+            artwork: currentArtwork
+        });
+    }
+}
+
+        // --- MAIN LOOP ---
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Update overlay periodically
+        setInterval(updateOverlay, 100);
+
+        // --- INITIALIZATION ---
+        startBtn.onclick = () => {
+            music.currentTime = 0;
+            music.volume = 0.3;
+        
+            music.play().then(() => {                
+                setDifficulty();
+                
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.playbackState = 'playing';
+        
+                    navigator.mediaSession.setActionHandler('previoustrack', () => handleInput('left'));
+                    navigator.mediaSession.setActionHandler('nexttrack', () => handleInput('right'));
+                    navigator.mediaSession.setActionHandler('play', () => handleInput('forward'));
+                    navigator.mediaSession.setActionHandler('pause', () => handleInput('shoot'));
+                    
+                    updateOverlay();
+                }
+        
+                gameLoop();
+                startBtn.textContent = "🔥 HELL LINK ACTIVE - WIN+A 🔥";
+                startBtn.disabled = true;
+            }).catch(err => {
+                console.error("Audio playback failed:", err);
+                alert("Audio Error: " + err.message);
+            });
+        };
+    </script>
+</body>
+</html>
