@@ -27,7 +27,7 @@ The game "screen" is displayed where the album art would normally go, kills and 
 </table>
 
 ## How to Play
-1. Visit the site [HERE](https://[YOUR-USERNAME].github.io/doom-windows-media-controls/).
+1. Visit the site [HERE](https://lianomeister.github.io/Doom-Windows-Media-Controls/).
 
 2. Initialize Hell Link: Choose your difficulty (optional) and then click the big red button to establish connection.
 
