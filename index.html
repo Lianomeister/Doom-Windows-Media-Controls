@@ -122,22 +122,26 @@
             </select>
         </div>
 
-        <div class="instructions">
-            <p><b>CONTROLS:</b></p>
-            <p>1. Click Initialize above</p>
-            <p>2. Press <b>Win + A</b> to open Media Controls</p>
-            <p>3. <b>Prev (◀)</b> = Turn LEFT</p>
-            <p>4. <b>Next (▶)</b> = Turn RIGHT</p>
-            <p>5. <b>Play</b> = Move FORWARD</p>
-            <p>6. <b>Pause</b> = SHOOT</p>
-            <p></p>
-            <p><b>OBJECTIVE: RIP AND TEAR DEMONS!</b></p>
-        </div>
+       <div class="instructions">
+    <p><b>CONTROLS:</b></p>
+    <p>1. Click Initialize above</p>
+    <p>2. Press <b>Win + A</b> to open Media Controls</p>
+    <p>3. <b>Prev (◀)</b> = Turn LEFT</p>
+    <p>4. <b>Next (▶)</b> = Turn RIGHT</p>
+    <p>5. <b>Play</b> = Move FORWARD</p>
+    <p>6. <b>Pause</b> = SHOOT</p>
+    <p></p>
+    <p><b>🚀 WANT WASD CONTROLS?</b></p>
+    <p>Install our <a href="https://github.com/lianomeister/media-controls-extension" target="_blank" style="color: #ff6b6b; text-decoration: underline;">Chrome Extension</a> for enhanced keyboard controls!</p>
+    <p></p>
+    <p><b>OBJECTIVE: RIP AND TEAR DEMONS!</b></p>
+</div>
     </div>
 
     <audio id="bgMusic" loop src="music.mp3"></audio>
 
     <script>
+        
         // --- CANVAS SETUP ---
         const canvas = document.createElement('canvas');
         canvas.width = 256;
@@ -838,6 +842,63 @@ function updateOverlay() {
                 alert("Audio Error: " + err.message);
             });
         };
+   // --- INITIALIZATION ---
+        startBtn.onclick = () => {
+            music.currentTime = 0;
+            music.volume = 0.3;
+        
+            music.play().then(() => {                
+                setDifficulty();
+                
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.playbackState = 'playing';
+        
+                    navigator.mediaSession.setActionHandler('previoustrack', () => handleInput('left'));
+                    navigator.mediaSession.setActionHandler('nexttrack', () => handleInput('right'));
+                    navigator.mediaSession.setActionHandler('play', () => handleInput('forward'));
+                    navigator.mediaSession.setActionHandler('pause', () => handleInput('shoot'));
+                    
+                    updateOverlay();
+                }
+        
+                gameLoop();
+                startBtn.textContent = "🔥 HELL LINK ACTIVE - WIN+A 🔥";
+                startBtn.disabled = true;
+            }).catch(err => {
+                console.error("Audio playback failed:", err);
+                alert("Audio Error: " + err.message);
+            });
+        };
+
+        // --- UNIVERSAL EXTENSION SUPPORT ---
+        let extensionDetected = false;
+
+        // Listen for messages from Extension
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'MEDIA_CONTROLS_EXTENSION_INPUT') {
+                extensionDetected = true;
+                
+                const action = event.data.action;
+                
+                // Route to correct handler
+                if (action === 'left') {
+                    handleInput('left');
+                } else if (action === 'right') {
+                    handleInput('right');
+                } else if (action === 'forward') {
+                    handleInput('forward');
+                } else if (action === 'shoot') {
+                    handleInput('shoot');
+                }
+            }
+        });
+
+        // Check if extension is active after 2 seconds
+        setTimeout(() => {
+            if (extensionDetected) {
+                console.log('🎮 Extension detected! Enhanced WASD controls available!');
+            }
+        }, 2000);
     </script>
 </body>
 </html>
